@@ -2,7 +2,7 @@
     "date":"",
     "model":"FYH",
     "data":{
-        "priceMin":"",
-        "priceMax":""
+        "price_min":"",
+        "price_max":""
     }
 }
