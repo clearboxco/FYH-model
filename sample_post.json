@@ -1,8 +1,26 @@
 {
     "date":"",
     "model":"FYH",
+    "message":"",
+    "filters":{
+        "price":{
+            "max":999999999,
+            "min":0
+        },
+        "property_type":1,
+        "location":{
+            "state":"",
+            "city":"",
+            "zip":""
+        },
+        "year_built":{
+            "max":2023,
+            "min":1776
+        }
+    },
     "data":{
-        "price_min":"",
-        "price_max":""
+        "bedrooms":0,
+        "bathrooms":0,
+        "sqft":0
     }
 }
