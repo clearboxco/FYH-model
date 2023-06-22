@@ -1,7 +1,9 @@
 {
+    "user":"",
     "date":"",
     "model":"FYH",
     "message":"",
+    "submission_type":1,
     "filters":{
         "price":{
             "max":999999999,
