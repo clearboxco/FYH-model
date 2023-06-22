@@ -8,6 +8,8 @@ import sys
 import pandas as pd
 import numpy as np
 
+from sqlalchemy import create_engine
+
 aws_bucket=os.getenv('AWS_RE_BUCKET')
 aws_key=os.getenv('AWS_RE_BUCKET_KEY')
 aws_secret=os.getenv('AWS_RE_BUCKET_SECRET')
@@ -87,4 +89,6 @@ df=df[df['PROPERTY TYPE'].isin(prop_types)]
 
 df=df.dropna(subset=['ADDRESS','CITY','STATE OR PROVINCE','ZIP OR POSTAL CODE','PROPERTY TYPE','PRICE','BEDS','BATHS','SQUARE FEET','YEAR BUILT','URL (SEE https://www.redfin.com/buy-a-home/comparative-market-analysis FOR INFO ON PRICING)'],axis=0).reset_index(drop=True).apply(lambda row: pd.to_numeric(row,errors='ignore'))
 
-df.to_csv(path_or_buf=f"./{date}_temp_data.csv")
+engine = create_engine("sqlite:///C:\\Users\\rsher\\Documents\\Projects\\PriceYourHome\\model-public\\model-image\\instance\\fyh-database.db")
+
+df.to_sql("houses",engine)
