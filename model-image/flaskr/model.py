@@ -5,7 +5,8 @@ import pandas as pd
 import numpy as np
 import random
 
-from flask import Flask
+from flask import Blueprint, request
+from flaskr.db import get_db
 
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
@@ -14,27 +15,20 @@ from sklearn.neighbors import NearestNeighbors
 
 from scipy.spatial.distance import euclidean
 
-df=pd.read_csv("2023-06-16_temp_data.csv")
 
-# METHOD ABOVE WILL BE DEPRECATED
 
-## Used to be from S3 bucket, now will allow for stream from SQL database
+# NEED TO SETUP POSTER LOGGING AND SEND TO DB FOR USER INFO
 
-## Need to run check here if SQL pull returns no data and push to Message
 
-# Prefix: DEFINE APP AND ENDPOINT
+bp = Blueprint('fyh-model',__name__,url_prefix='/fyh-model')
 
-app = Flask(__name__)
-
-@app.route('/post', methods=['POST'])
+@bp.route('/post', methods=['POST'])
 def post_endpoint():
-    input_data = request.get_json()
-
-# PART 1: READ IN JSON DATA
-
-def parse_json(input_data):
-    submission_type=input_data['submission_type']
     
+    # PART 1: READ IN JSON DATA
+    input_data = request.get_json(force=True)
+    
+    submission_type=input_data['submission_type']
     
     filters=input_data['filters']
 
@@ -57,21 +51,25 @@ def parse_json(input_data):
     bathrooms=data['bathrooms']
     sqft=data['sqft']
 
-
 # PART 2: CONFIGURE MODEL SETTINGS
+    def configure_model_weights(submission_type,bds,bas,sqft):
+        bd_weight=1
+        ba_weight=1
+        sqft_weight=1
+        
+        if submission_type==2:
+            if bds==0:
+                bd_weight=0
+            if bas==0:
+                ba_weight=0
+            if sqft==0:
+                sqft_weight=0
+                
+        return np.array([bd_weight,ba_weight,sqft_weight])
 
-def configure_model_weights(bds,bas,sqft):
-    bd_weight=1
-    ba_weight=1
-    sqft_weight=1
+    weights=configure_model_weights(submission_type,bedrooms,bathrooms,sqft)
     
-    if submission_type==2:
-        if bds==0:
-            bd_weight=0
-        if bas==0:
-            ba_weight=0
-        if sqft==0:
-            sqft_weight=0
+    # CONTINUE HERE!!!!!!!!!!!!!!!!!!!!!!!!!
 
 # PART 3: PREPROCESS STREAMED DATA
 

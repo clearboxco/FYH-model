@@ -1,13 +1,14 @@
 import os
 
-from flask import Flask
+from flask import Flask,request
+from . import db
 
 def create_app(test_config=None):
     # create and configure the app
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_mapping(
-        SECRET_KEY='dev',
-        DATABASE=os.path.join(app.instance_path, ''),
+        SECRET_KEY='dev', # SECRET KEYS IN PUBLISHED APPS IS STUPID; wiLL OS.GETNV
+        DATABASE=os.path.join(app.instance_path, 'fyh-database.db'),
     )
 
     if test_config is None:
@@ -29,5 +30,7 @@ def create_app(test_config=None):
         input_data = request.get_json(force=True)
         return input_data
     
+
+    db.init_app(app)
     
     return app

@@ -92,3 +92,5 @@ df=df.dropna(subset=['ADDRESS','CITY','STATE OR PROVINCE','ZIP OR POSTAL CODE','
 engine = create_engine("sqlite:///C:\\Users\\rsher\\Documents\\Projects\\PriceYourHome\\model-public\\model-image\\instance\\fyh-database.db")
 
 df.to_sql("houses",engine)
+
+# Creates a valid Sqlite db
