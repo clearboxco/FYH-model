@@ -6,7 +6,7 @@ import numpy as np
 import random
 
 from flask import Blueprint, request
-from flaskr.db import get_db
+from .db import get_db
 
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
@@ -56,7 +56,7 @@ def post_endpoint():
         if bedrooms==0:
             bedrooms=random.randint(2,9)
         if bathrooms==0:
-            deviation=random.randint(0,1,2)
+            deviation=random.randint(0,2)
             if random.randint(0,1) % 2 ==0:
                 bathrooms=bedrooms+deviation
             else:
@@ -91,60 +91,60 @@ def post_endpoint():
     execution_vars=[]
     execution_string='SELECT * FROM houses WHERE('
     
-    execution_string+='"PRICE" < ? AND "PRICE" > ?'
+    execution_string+=f'"PRICE" < {price_max} AND "PRICE" > {price_min}'
     execution_string+=" AND "
     execution_vars.append(price_max)
     execution_vars.append(price_min)
     
     property_type_logic={
-        1:"Single Family Residential",
-        2:"Multi-Family (2-4 Unit)",
-        3:"Multi-Family (5+ Unit)",
-        4:"Townhouse",
-        5:"Condo/Co-op",
-        6:"Mobile/Manufactured Home",
+        1:"'Single Family Residential'",
+        2:"'Multi-Family (2-4 Unit)'",
+        3:"'Multi-Family (5+ Unit)'",
+        4:"'Townhouse'",
+        5:"'Condo/Co-op'",
+        6:"'Mobile/Manufactured Home'",
     }
     
-    execution_string+='"PROPERTY TYPE" = ?'
+    execution_string+=f'"PROPERTY TYPE" = {property_type_logic[property_type]}'
     execution_string+=" AND "
     execution_vars.append(property_type_logic[property_type])
     
-    execution_string+='"YEAR BULT" < ? AND "YEAR BUILT" > ?'
+    execution_string+=f'"YEAR BUILT" < {year_built_max} AND "YEAR BUILT" > {year_built_min}'
     execution_vars.append(year_built_max)
     execution_vars.append(year_built_min)
     
-    if (state!="" or state is not None):
+    if (state!="" and state is not None):
         execution_string+=' AND '
-        execution_string+='"STATE OR PROVINCE" = ?'
-        execution_vars.append(state)
+        execution_string+=f'"STATE OR PROVINCE" = {state.upper()}'
+        execution_vars.append(state.upper())
         
-    if (city!="" or city is not None):
+    if (city!="" and city is not None):
         execution_string+=' AND '
-        execution_string+='"CITY" = ?'
-        execution_vars.append(city)
+        execution_string+=f'"CITY" = {city.capitalize()}'
+        execution_vars.append(city.capitalize())
         
-    if (zip!="" or zip is not None):
+    if (zip!="" and zip is not None):
         execution_string+=' AND '
-        execution_string+='"ZIP OR POSTAL CODE" = ?'
+        execution_string+=f'"ZIP OR POSTAL CODE" = {zip}'
         execution_vars.append(zip)
 
     execution_string+=');'
     
     db=get_db()
-    db_output=db.execute(execution_string,tuple(execution_vars))
 
 # PART 3: PREPROCESS STREAMED DATA
 
     #convert to df
-    df=pd.read_sql(db_output)
+    df=pd.read_sql_query(execution_string,db)
     
     random_state=random.randint(0,999)
 
     NN_df=df.sample(frac=1, replace=False, random_state=random_state)
-    
+
     
     NN_df=NN_df[['BEDS','BATHS','SQUARE FEET']]
-    input_df=pd.Dataframe({'BEDS':[bedrooms],'BATHS':[bathrooms],'SQUARE FEET':[sqft]})
+    
+    input_df=pd.DataFrame({'BEDS':[2],'BATHS':[2],'SQUARE FEET':[1800]})
         
     # Define the transformations for each column
     preprocessor = ColumnTransformer(
@@ -155,7 +155,7 @@ def post_endpoint():
     # Apply the transformations in a pipeline
     pipeline = Pipeline(steps=[('preprocessor', preprocessor)])
 
-    NN_np=pipeline.fit_transform(df)
+    NN_np=pipeline.fit_transform(NN_df)
     input_np=pipeline.transform(input_df)
         
 
@@ -169,35 +169,30 @@ def post_endpoint():
 
 
     knn=NearestNeighbors(n_neighbors=NN_np.shape[0],metric=weighted_euclidian)
-    knn.fit(data)
+    knn.fit(NN_np)
     
     distances, indices = knn.kneighbors(input_np)
 
 
-    def get_top(indices) -> pd.DataFrame:
-        df_list=[]
+    def get_top(df,indices) -> pd.DataFrame:
+        top=6
         
-        c=0
-        for index in indices[0]:
-            if c>6:
-                break
+        if indices[0].shape[0]<6:
+            top=indices[0].shape[0]
             
-            df_list.append(df.loc[index])
+        return df.loc[0:top]
             
-            c+=1
-            
-        return pd.concat(df_list)
     
     
-    result_df=get_top(indices)
+    result_df=get_top(df,indices)
 
 # PART 5: POST MODEL DATA
 
-    def prepare_model_json(df) ->list[dict]:
+    def prepare_model_json(df:pd.DataFrame) ->list[dict]:
         lst=[]
         
         jsn=df.to_json(orient='records')
-        parsed=json.load(jsn)
+        parsed=json.loads(jsn)
         
         for li in parsed:
             h={
@@ -230,11 +225,11 @@ def post_endpoint():
         "data":prepare_model_json(result_df)
     }
     
-    with open('output.json','w') as f:
-        json.dump(output,f)
+    with open('../output.json','w') as f:
+        json.dump(output,f,indent=4)
 
     
-
+    return '',204 # No Content; Valid Return
     
     
     
