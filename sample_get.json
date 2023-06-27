@@ -18,7 +18,8 @@
             "zip":"",
             "openHouse_st":"",
             "openHouse_et":"",
-            "HOA/month":""
+            "HOA/month":"",
+            "days_on_market":""
         },
         {
             "url":"",
@@ -33,7 +34,8 @@
             "zip":"",
             "openHouse_st":"",
             "openHouse_et":"",
-            "HOA/month":""
+            "HOA/month":"",
+            "days_on_market":""
         },
         {
             "url":"",
@@ -48,7 +50,8 @@
             "zip":"",
             "openHouse_st":"",
             "openHouse_et":"",
-            "HOA/month":""
+            "HOA/month":"",
+            "days_on_market":""
         },
         {
             "url":"",
@@ -63,7 +66,8 @@
             "zip":"",
             "openHouse_st":"",
             "openHouse_et":"",
-            "HOA/month":""
+            "HOA/month":"",
+            "days_on_market":""
         },
         {
             "url":"",
@@ -78,7 +82,8 @@
             "zip":"",
             "openHouse_st":"",
             "openHouse_et":"",
-            "HOA/month":""
+            "HOA/month":"",
+            "days_on_market":""
         },
         {
             "url":"",
@@ -93,7 +98,8 @@
             "zip":"",
             "openHouse_st":"",
             "openHouse_et":"",
-            "HOA/month":""
+            "HOA/month":"",
+            "days_on_market":""
         }
     ]
 

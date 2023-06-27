@@ -23,14 +23,16 @@ def create_app(test_config=None):
         os.makedirs(app.instance_path)
     except OSError:
         pass
-
-    # a simple page that says hello
-    @app.route('/post', methods=['POST'])
-    def post_endpoint():
-        input_data = request.get_json(force=True)
-        return input_data
     
+    # registering blueprint
+    from . import model
+    app.register_blueprint(model.bp)
+
 
     db.init_app(app)
     
     return app
+
+if __name__ == "__main__":
+    app=create_app()
+    app.run(debug=True)

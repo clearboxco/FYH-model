@@ -83,7 +83,7 @@ def post_endpoint():
                 
         return np.array([bd_weight,ba_weight,sqft_weight])
 
-    weights=configure_model_weights(submission_type,bedrooms,bathrooms,sqft)
+    model_weights=configure_model_weights(submission_type,bedrooms,bathrooms,sqft)
     
     
 # PART 3: STREAM DATA
@@ -138,53 +138,40 @@ def post_endpoint():
     #convert to df
     df=pd.read_sql(db_output)
     
-    # CONTINUE HERE !!!!
-    
-    # Need to figure out if can modify in-place and return random_state or if need to return tuple
+    random_state=random.randint(0,999)
 
-    def shuffle_data(df:pd.DataFrame):
-        random_state=random.randint(0,999)
-        
-        df.sample(frac=1, replace=False, random_state=random_state)
-        
-        return random_state
+    NN_df=df.sample(frac=1, replace=False, random_state=random_state)
     
     
-
-    def preprocess_data():
-        NN_df=df[['BEDS','BATHS','SQUARE FEET']]
-        input_df=pd.Dataframe({'BEDS':[bedrooms],'BATHS':[bathrooms],'SQUARE FEET':[sqft]})
+    NN_df=NN_df[['BEDS','BATHS','SQUARE FEET']]
+    input_df=pd.Dataframe({'BEDS':[bedrooms],'BATHS':[bathrooms],'SQUARE FEET':[sqft]})
         
-        # Define the transformations for each column
-        preprocessor = ColumnTransformer(
-        transformers=[
-            ('minmax_scaler',MinMaxScaler(),['BEDS','BATHS','SQUARE FEET'])
-        ])
+    # Define the transformations for each column
+    preprocessor = ColumnTransformer(
+    transformers=[
+        ('minmax_scaler',MinMaxScaler(),['BEDS','BATHS','SQUARE FEET'])
+    ])
 
-        # Apply the transformations in a pipeline
-        pipeline = Pipeline(steps=[('preprocessor', preprocessor)])
+    # Apply the transformations in a pipeline
+    pipeline = Pipeline(steps=[('preprocessor', preprocessor)])
 
-        NN_np=pipeline.fit_transform(NN_df)
-        input_np=pipeline.transform(input_df)
+    NN_np=pipeline.fit_transform(df)
+    input_np=pipeline.transform(input_df)
         
-        
-        return NN_np
+
 
 
     # PART 4: RUN MODEL
 
-    def weighted_euclidian(x,y):
-        weights=np.array(bd_weight,ba_weight,sqft_weight)
+    def weighted_euclidian(x,y,weights=model_weights):
         
-        return euclidean
+        return euclidean(x,y,weights)
 
-    def create_model(input,data:np.array):
-        knn=NearestNeighbors(n_neighbors=data.shape[0],metric=weighted_euclidian)
-        knn.fit(data)
-        
-        distances, indices = knn.kneighbors(input)
-        
-        return distances, indices
+
+    knn=NearestNeighbors(n_neighbors=NN_np.shape[0],metric=weighted_euclidian)
+    knn.fit(data)
+    
+    distances, indices = knn.kneighbors(input_np)
 
 
     def get_top(indices) -> pd.DataFrame:
@@ -200,13 +187,55 @@ def post_endpoint():
             c+=1
             
         return pd.concat(df_list)
-        
-        
-        
     
-
+    
+    result_df=get_top(indices)
 
 # PART 5: POST MODEL DATA
 
-def prepare_json():
+    def prepare_model_json(df) ->list[dict]:
+        lst=[]
+        
+        jsn=df.to_json(orient='records')
+        parsed=json.load(jsn)
+        
+        for li in parsed:
+            h={
+                "url":li["URL (SEE https://www.redfin.com/buy-a-home/comparative-market-analysis FOR INFO ON PRICING)"],
+                "price":li["PRICE"],
+                "bedrooms":li["BEDS"],
+                "bathrooms":li["BATHS"],
+                "sqft":li["SQUARE FEET"],
+                "year_built":li["YEAR BUILT"],
+                "address":li["ADDRESS"],
+                "state":li["STATE OR PROVINCE"],
+                "city":li["CITY"],
+                "zip":li["ZIP OR POSTAL CODE"],
+                "openHouse_st":li["NEXT OPEN HOUSE START TIME"],
+                "openHouse_et":li["NEXT OPEN HOUSE END TIME"],
+                "HOA/month":li["HOA/MONTH"],
+                "days_on_market":li["DAYS ON MARKET"]     
+            }
+        
+            lst.append(h)
+            h={}
+            
+        return lst
+
+    output={
+        "user":input_data["user"],
+        "date":"",
+        "model":"FYH",
+        "random_state":random_state,
+        "data":prepare_model_json(result_df)
+    }
+    
+    with open('output.json','w') as f:
+        json.dump(output,f)
+
+    
+
+    
+    
+    
     
