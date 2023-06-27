@@ -50,7 +50,8 @@ def post_endpoint():
     bedrooms=data['bedrooms']
     bathrooms=data['bathrooms']
     sqft=data['sqft']
-    
+
+
     #I'm Feeling Lucky
     if submission_type==1:
         if bedrooms==0:
@@ -139,12 +140,11 @@ def post_endpoint():
     
     random_state=random.randint(0,999)
 
-    NN_df=df.sample(frac=1, replace=False, random_state=random_state)
-
+    sampled_df=df.sample(frac=1, replace=False, random_state=random_state)
     
-    NN_df=NN_df[['BEDS','BATHS','SQUARE FEET']]
+    NN_df=sampled_df[['BEDS','BATHS','SQUARE FEET']]
     
-    input_df=pd.DataFrame({'BEDS':[2],'BATHS':[2],'SQUARE FEET':[1800]})
+    input_df=pd.DataFrame({'BEDS':[bedrooms],'BATHS':[bathrooms],'SQUARE FEET':[sqft]})
         
     # Define the transformations for each column
     preprocessor = ColumnTransformer(
@@ -180,11 +180,11 @@ def post_endpoint():
         if indices[0].shape[0]<6:
             top=indices[0].shape[0]
             
-        return df.loc[0:top]
+        return df.iloc[indices[0][0:top]]
             
     
     
-    result_df=get_top(df,indices)
+    result_df=get_top(sampled_df,indices)
 
 # PART 5: POST MODEL DATA
 
