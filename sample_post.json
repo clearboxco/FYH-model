@@ -7,13 +7,13 @@
     "submission_type":1,
     "filters":{
         "price":{
-            "max":999999999,
-            "min":0
+            "max":500000,
+            "min":250000
         },
         "property_type":1,
         "location":{
-            "state":"",
-            "city":"",
+            "state":"TX",
+            "city":"Houston",
             "zip":""
         },
         "year_built":{
@@ -22,8 +22,8 @@
         }
     },
     "data":{
-        "bedrooms":0,
-        "bathrooms":0,
+        "bedrooms":3,
+        "bathrooms":2,
         "sqft":0
     }
 }

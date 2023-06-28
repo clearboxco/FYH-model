@@ -116,12 +116,12 @@ def post_endpoint():
     
     if (state!="" and state is not None):
         execution_string+=' AND '
-        execution_string+=f'"STATE OR PROVINCE" = {state.upper()}'
+        execution_string+=f'"STATE OR PROVINCE" = \'{state.upper()}\''
         execution_vars.append(state.upper())
         
     if (city!="" and city is not None):
         execution_string+=' AND '
-        execution_string+=f'"CITY" = {city.capitalize()}'
+        execution_string+=f'"CITY" = \'{city.capitalize()}\''
         execution_vars.append(city.capitalize())
         
     if (zip!="" and zip is not None):

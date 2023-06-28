@@ -2,6 +2,7 @@ import os
 
 from flask import Flask,request
 from . import db
+from . import model
 
 def create_app(test_config=None):
     # create and configure the app
@@ -25,7 +26,6 @@ def create_app(test_config=None):
         pass
     
     # registering blueprint
-    from . import model
     app.register_blueprint(model.bp)
 
 
