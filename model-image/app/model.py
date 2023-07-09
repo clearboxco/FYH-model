@@ -3,10 +3,10 @@ import os
 
 import pandas as pd
 import numpy as np
-import random
 
-from flask import Blueprint, request
+from flask import Blueprint, request, current_app
 from .db import get_db
+from sqlalchemy import text
 
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
@@ -14,6 +14,7 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.neighbors import NearestNeighbors
 
 from scipy.spatial.distance import euclidean
+from scipy.stats import norm
 
 
 
@@ -51,23 +52,8 @@ def post_endpoint():
     bathrooms=data['bathrooms']
     sqft=data['sqft']
 
-
-    #I'm Feeling Lucky
-    if submission_type==1:
-        if bedrooms==0:
-            bedrooms=random.randint(2,9)
-        if bathrooms==0:
-            deviation=random.randint(0,2)
-            if random.randint(0,1) % 2 ==0:
-                bathrooms=bedrooms+deviation
-            else:
-                bathrooms=bedrooms-deviation
-            if bathrooms<1:
-                bathrooms=1
-        if sqft==0:
-            sqft=random.randint(450,10000)
-
 # PART 2: CONFIGURE MODEL SETTINGS
+
     def configure_model_weights(submission_type,bds,bas,sqft):
         bd_weight=1
         ba_weight=1
@@ -87,12 +73,23 @@ def post_endpoint():
     model_weights=configure_model_weights(submission_type,bedrooms,bathrooms,sqft)
     
     
+    with open(os.path.join(current_app.instance_path,'scripts','tables.txt'),'r') as f:
+        lines=f.readlines()
+    
+    sql_tables=[str(line.strip()) for line in lines]
+    
+    with open(os.path.join(current_app.instance_path,'scripts','columns.txt'),'r') as f:
+        lines=f.readlines()
+    
+    sql_columns=[str(line.strip()) for line in lines]
+    
+    
 # PART 3: STREAM DATA
     
     execution_vars=[]
-    execution_string='SELECT * FROM houses WHERE('
+    execution_string=f'SELECT * FROM {sql_tables[2]} WHERE('
     
-    execution_string+=f'"PRICE" < {price_max} AND "PRICE" > {price_min}'
+    execution_string+=f'"{sql_columns[25]}" < {price_max} AND "{sql_columns[25]}" > {price_min}'
     execution_string+=" AND "
     execution_vars.append(price_max)
     execution_vars.append(price_min)
@@ -106,50 +103,71 @@ def post_endpoint():
         6:"'Mobile/Manufactured Home'",
     }
     
-    execution_string+=f'"PROPERTY TYPE" = {property_type_logic[property_type]}'
+    execution_string+=f'{sql_columns[13]} = {property_type_logic[property_type]}'
     execution_string+=" AND "
     execution_vars.append(property_type_logic[property_type])
     
-    execution_string+=f'"YEAR BUILT" < {year_built_max} AND "YEAR BUILT" > {year_built_min}'
+    execution_string+=f'"{sql_columns[26]}" < {year_built_max} AND "{sql_columns[26]}" > {year_built_min}'
     execution_vars.append(year_built_max)
     execution_vars.append(year_built_min)
     
     if (state!="" and state is not None):
         execution_string+=' AND '
-        execution_string+=f'"STATE OR PROVINCE" = \'{state.upper()}\''
+        execution_string+=f'"{sql_columns[16]}" = \'{state.upper()}\''
         execution_vars.append(state.upper())
         
     if (city!="" and city is not None):
         execution_string+=' AND '
-        execution_string+=f'"CITY" = \'{city.capitalize()}\''
+        execution_string+=f'"{sql_columns[15]}" = \'{city.capitalize()}\''
         execution_vars.append(city.capitalize())
         
     if (zip!="" and zip is not None):
         execution_string+=' AND '
-        execution_string+=f'"ZIP OR POSTAL CODE" = {zip}'
+        execution_string+=f'"{sql_columns[24]}" = {zip}'
         execution_vars.append(zip)
 
     execution_string+=');'
     
     db=get_db()
 
-# PART 3: PREPROCESS STREAMED DATA
+# PART 4: PREPROCESS STREAMED DATA
 
     #convert to df
-    df=pd.read_sql_query(execution_string,db)
+    df=pd.read_sql_query(text(execution_string),db)
     
-    random_state=random.randint(0,999)
+    # Alter to potential use values based on normal disribution of values
+
+    #I'm Feeling Lucky
+
+    random_state=np.random.randint(0,999)
+    
+    if submission_type==1:
+        np.random.seed(random_state)
+        if bedrooms==0:
+            bedrooms_probabilities=df[sql_columns[0]].value_counts(normalize=True)
+            bedrooms=np.random.choice(bedrooms_probabilities.index,p=bedrooms_probabilities.values)
+        if bathrooms==0:
+            bathrooms_probabilities=df[sql_columns[1]].value_counts(normalize=True)
+            bathrooms=np.random.choice(bathrooms_probabilities.index,p=bathrooms_probabilities.values)
+        if sqft==0:
+            sqft_probabilities=df[sql_columns[3]].value_counts(normalize=True)
+            sqft=np.random.choice(sqft_probabilities.index,p=sqft_probabilities.values)
+            
+            
+            
+            
+
 
     sampled_df=df.sample(frac=1, replace=False, random_state=random_state)
     
-    NN_df=sampled_df[['BEDS','BATHS','SQUARE FEET']]
+    NN_df=sampled_df[[f'{sql_columns[0]}',f'{sql_columns[1]}',f'{sql_columns[3]}']]
     
-    input_df=pd.DataFrame({'BEDS':[bedrooms],'BATHS':[bathrooms],'SQUARE FEET':[sqft]})
+    input_df=pd.DataFrame({f'{sql_columns[0]}':[bedrooms],f'{sql_columns[1]}':[bathrooms],f'{sql_columns[3]}':[sqft]})
         
     # Define the transformations for each column
     preprocessor = ColumnTransformer(
     transformers=[
-        ('minmax_scaler',MinMaxScaler(),['BEDS','BATHS','SQUARE FEET'])
+        ('minmax_scaler',MinMaxScaler(),[f'{sql_columns[0]}',f'{sql_columns[1]}',f'{sql_columns[3]}'])
     ])
 
     # Apply the transformations in a pipeline
@@ -161,7 +179,7 @@ def post_endpoint():
 
 
 
-    # PART 4: RUN MODEL
+# PART 5: RUN MODEL
 
     def weighted_euclidian(x,y,weights=model_weights):
         
@@ -175,9 +193,9 @@ def post_endpoint():
 
 
     def get_top(df,indices) -> pd.DataFrame:
-        top=6
+        top=15
         
-        if indices[0].shape[0]<6:
+        if indices[0].shape[0]<top:
             top=indices[0].shape[0]
             
         return df.iloc[indices[0][0:top]]
@@ -186,7 +204,7 @@ def post_endpoint():
     
     result_df=get_top(sampled_df,indices)
 
-# PART 5: POST MODEL DATA
+# PART 6: POST MODEL DATA
 
     def prepare_model_json(df:pd.DataFrame) ->list[dict]:
         lst=[]
@@ -196,20 +214,22 @@ def post_endpoint():
         
         for li in parsed:
             h={
-                "url":li["URL (SEE https://www.redfin.com/buy-a-home/comparative-market-analysis FOR INFO ON PRICING)"],
-                "price":li["PRICE"],
-                "bedrooms":li["BEDS"],
-                "bathrooms":li["BATHS"],
-                "sqft":li["SQUARE FEET"],
-                "year_built":li["YEAR BUILT"],
-                "address":li["ADDRESS"],
-                "state":li["STATE OR PROVINCE"],
-                "city":li["CITY"],
-                "zip":li["ZIP OR POSTAL CODE"],
-                "openHouse_st":li["NEXT OPEN HOUSE START TIME"],
-                "openHouse_et":li["NEXT OPEN HOUSE END TIME"],
-                "HOA/month":li["HOA/MONTH"],
-                "days_on_market":li["DAYS ON MARKET"]     
+                "time_stamp":li[sql_columns[11]],
+                "url":li[sql_columns[22]],
+                "price":li[sql_columns[25]],
+                "bedrooms":li[f"{sql_columns[0]}"],
+                "bathrooms":li[f"{sql_columns[1]}"],
+                "sqft":li[f"{sql_columns[3]}"],
+                "year_built":li[sql_columns[26]],
+                "address":li[sql_columns[14]],
+                "state":li[sql_columns[16]],
+                "city":li[sql_columns[15]],
+                "zip":li[sql_columns[24]],
+                "openHouse_st":li[sql_columns[20]],
+                "openHouse_et":li[sql_columns[21]],
+                "HOA/month":li[sql_columns[18]],
+                "days_on_market":li[sql_columns[27]],
+                "price_per_sqft":li[sql_columns[17]]     
             }
         
             lst.append(h)

@@ -10,10 +10,10 @@
             "max":500000,
             "min":250000
         },
-        "property_type":1,
+        "property_type":2,
         "location":{
-            "state":"TX",
-            "city":"Houston",
+            "state":"",
+            "city":"",
             "zip":""
         },
         "year_built":{
@@ -22,8 +22,8 @@
         }
     },
     "data":{
-        "bedrooms":3,
-        "bathrooms":2,
+        "bedrooms":5,
+        "bathrooms":5,
         "sqft":0
     }
 }

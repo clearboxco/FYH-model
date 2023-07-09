@@ -1,17 +1,21 @@
-import sqlite3 # TO DELETE
-
-import psycopg2
+from sqlalchemy import create_engine,URL,Row
 
 import click
 from flask import current_app,g
 
 def get_db():
     if 'db' not in g:
-        g.db=sqlite3.connect( # REPLACE WITH PSYCOPG2 EQUIVALENT
-            current_app.config['DATABASE'],
-            detect_types=sqlite3.PARSE_DECLTYPES
+        url=URL.create(
+            drivername="postgresql+psycopg2",
+            host=current_app.config['ENDPOINT'],
+            database=current_app.config['DBNAME'],
+            username=current_app.config['USER'],
+            password=current_app.config['PASS'],
+            port=current_app.config['PORT']
         )
-        g.db.row_factory=sqlite3.Row
+        
+        g.db=create_engine(url).connect()
+        g.db.row_factory=Row
         
     return g.db
 
@@ -21,7 +25,6 @@ def close_db(e=None):
     
     if db is not None:
         db.close()
-        
     
     
 def init_app(app):
