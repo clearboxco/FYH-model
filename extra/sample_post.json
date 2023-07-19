@@ -1,0 +1,25 @@
+{
+    "token":"",
+    "model":"FYH",
+    "submission_type":1,
+    "price":{
+        "max":500000,
+        "min":250000
+    },
+    "property_type":1,
+    "location":{
+        "state":"TX",
+        "city":"",
+        "zip":"77004"
+    },
+    "year_built":{
+        "max":2023,
+        "min":1776
+    },
+    "dimensions":{
+        "bedrooms":0,
+        "bathrooms":0,
+        "sqft":0
+    }
+    
+}

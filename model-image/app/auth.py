@@ -7,6 +7,7 @@ from .db import get_db
 from flask import (
     Blueprint, flash, g, redirect, render_template, request, session, url_for, current_app
 )
+from flask_cors import cross_origin
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -18,7 +19,7 @@ from sqlalchemy.exc import IntegrityError
 
 bp = Blueprint('auth',__name__,url_prefix='/auth')
 
-@bp.route('/register',methods=['POST'])
+@bp.route('/register',methods=['GET','POST'])
 def register():
     post=request.get_json(force=True)
     
@@ -32,26 +33,24 @@ def register():
         error = 'Username is required.'
     elif not username:
         error='Password is required.'
-        
             
     if error is None:
-        trans=db.begin()
         try:
-            with open(os.path.join(current_app.instance_path,'scripts','insert.sql')) as f:
-                insert_sql=f.read()
+            with open(os.path.join(current_app.instance_path,'scripts','insert_user.sql')) as f:
+                insert_user_sql=f.read()
                 
-            db.execute(text(insert_sql),{'value1':username,'value2':generate_password_hash(password)},trans=trans)
-            trans.commit()
+            db.execute(text(insert_user_sql),{'value1':username,'value2':generate_password_hash(password)})
+            db.commit()
         except IntegrityError:
-            trans.rollback()
+            db.rollback()
             error = f"User {username} is already registered."
 
     
-    return json.dumps({"error":error})
+    return json.dumps({"error":error}), 200
         
         
         
-@bp.route('/login',methods=['POST'])
+@bp.route('/login',methods=['GET','POST'])
 def login():
     
     post=request.get_json(force=True)
@@ -72,16 +71,14 @@ def login():
     elif not check_password_hash(user[2],password):
         error='Incorrect password.'
 
-            
     if error is None:
         session.clear()
         session['user_id']=user[0]
         
-        
     return json.dumps({"error":error})
         
         
-@bp.before_app_request
+@bp.before_app_request # It's getting called before requests, but it won't save the session
 def load_logged_in_user():
     user_id=session.get('user_id')
     
@@ -90,11 +87,60 @@ def load_logged_in_user():
     else:
         with open(os.path.join(current_app.instance_path,'scripts','get_confirmed_user.sql')) as f:
             get_confirmed_user_sql=f.read()
-        g.user = get_db().execute(text(get_confirmed_user_sql),{'value1':user_id}).fetchone()
+        g.user = get_db().execute(text(get_confirmed_user_sql),{'value1':int(user_id)}).fetchone()
         
         
-@bp.route('/logout')
+@bp.route('/logout',methods=['GET'])
 def logout():
     session.clear()
+    return '',200
     
+    
+    
+@bp.route('/reset',methods=['POST'])
+def reset_password():
+    pass
+    
+    
+
+
+@bp.route('/update',methods=['POST'])
+def change_password():
+    error=None
+    
+    if g.user is not None:
+        
+        post=request.get_json(force=True)
+        password=post['password']
+        
+        with open(os.path.join(current_app.instance_path,'scripts','update_password.sql')) as f:
+            update_password_sql=f.read()
+            
+        db=get_db()
+        
+        try:
+            db.execute(text(update_password_sql),{'value1':generate_password_hash(password),'value2':g.user[0]})
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+    else:
+        error="Invalid request."       
+            
+    json.dumps({"error":error})
+    
+
+def login_required(view):
+    @functools.wraps(view)
+    def wrapped_view(**kwargs):
+        if g.user is None:
+            return None
+        
+        return view(**kwargs)
+    
+    return wrapped_view
+
+    
+    
+            
+            
         

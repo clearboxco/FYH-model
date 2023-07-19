@@ -1,8 +1,6 @@
 {
-    "user":"",
-    "date":"",
+    "error":null,
     "model":"FYH",
-    "messages":[""],
     "random_state":0,
     "data":[
         {
@@ -19,7 +17,8 @@
             "openHouse_st":"",
             "openHouse_et":"",
             "HOA/month":"",
-            "days_on_market":""
+            "days_on_market":"",
+            "price_per_sft":""
         },
         {
             "url":"",

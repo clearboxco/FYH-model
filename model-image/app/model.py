@@ -1,12 +1,15 @@
 import json
 import os
+import time
 
 import pandas as pd
 import numpy as np
 
-from flask import Blueprint, request, current_app
+from flask import Blueprint, request, current_app, g
 from .db import get_db
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
+from celery import shared_task
 
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
@@ -14,65 +17,89 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.neighbors import NearestNeighbors
 
 from scipy.spatial.distance import euclidean
-from scipy.stats import norm
 
 
+bp = Blueprint('model',__name__,url_prefix='/model')
 
-# NEED TO SETUP POSTER LOGGING AND SEND TO DB FOR USER INFO
+#@shared_task(name='record-user-search') # TRY TO GET ASYNC
+def record_user_search(data,date:time.time):
+    
+    i_data=data['input']
+    o_data=data['output']
+    
+    try:
+        id=g.user[0]
+    except:
+        id=None
+     
+    try:
+        db=get_db()
+        
+        with open(os.path.join(current_app.instance_path,'scripts','post_search.sql'),'r') as f:
+            post_searches_sql=f.read()   
+            
+        s_id=db.execute(text(post_searches_sql),{'value1':date,
+                                                'value2':i_data['submission_type'],
+                                                'value3':i_data['location']['city'],
+                                                'value4':i_data['location']['state'],
+                                                'value5':i_data['location']['zip'],
+                                                'value6':i_data['price']['max'],
+                                                'value7':i_data['price']['min'],
+                                                'value8':i_data['dimensions']['bedrooms'],
+                                                'value9':i_data['dimensions']['bathrooms'],
+                                                'value10':i_data['dimensions']['sqft'],
+                                                'value11':i_data['property_type'],
+                                                'value12':i_data['year_built']['max'],
+                                                'value13':i_data['year_built']['min'],
+                                                'value14':id
+                                                }).fetchone()[0]
+        
+        with open(os.path.join(current_app.instance_path,'scripts','post_s_h_join.sql'),'r') as f:
+            post_s_h_join_sql=f.read()
 
+            for idx,h in enumerate(o_data['data']):
+                db.execute(text(post_s_h_join_sql),{'value1':s_id,'value2':h['id'],'value3':idx})
+            db.commit()
+        
+        
+    except IntegrityError as e:
+        db.rollback()
+        raise e
+    except Exception as e:
+        db.rollback()
+        raise e
 
-bp = Blueprint('fyh-model',__name__,url_prefix='/fyh-model')
+            
+            
 
 @bp.route('/post', methods=['POST'])
-def post_endpoint():
+def execute_model():
     
     # PART 1: READ IN JSON DATA
     input_data = request.get_json(force=True)
     
-    submission_type=input_data['submission_type']
+    o_input_data=input_data # Modify for output
     
-    filters=input_data['filters']
+    submission_type=int(input_data['submission_type'])
+    
+    price_max=float(input_data['price']['max'])
+    price_min=float(input_data['price']['min'])
+    property_type=int(input_data["property_type"])
+    state=str(input_data['location']['state'])
+    city=str(input_data['location']['city'])
+    zip=str(input_data['location']['zip'])
+    year_built_max=int(input_data['year_built']['max'])
+    year_built_min=int(input_data['year_built']['min'])
 
-    price_max=filters['price']['max']
-    price_min=filters['price']['min']
+    bedrooms=float(input_data['dimensions']['bedrooms'])
+    bathrooms=float(input_data['dimensions']['bathrooms'])
+    sqft=float(input_data['dimensions']['sqft'])
     
-    property_type=filters["property_type"]
     
-    state=filters['location']['state']
-    city=filters['location']['city']
-    zip=filters['location']['zip']
     
-    year_built_max=filters['year_built']['max']
-    year_built_min=filters['year_built']['min']
+    
+# PART 2: STREAM DATA
 
-
-    data=input_data['data']
-    
-    bedrooms=data['bedrooms']
-    bathrooms=data['bathrooms']
-    sqft=data['sqft']
-
-# PART 2: CONFIGURE MODEL SETTINGS
-
-    def configure_model_weights(submission_type,bds,bas,sqft):
-        bd_weight=1
-        ba_weight=1
-        sqft_weight=1
-        
-        #Proper Submit w/ no value
-        if submission_type==2:
-            if bds==0:
-                bd_weight=0
-            if bas==0:
-                ba_weight=0
-            if sqft==0:
-                sqft_weight=0
-                
-        return np.array([bd_weight,ba_weight,sqft_weight])
-
-    model_weights=configure_model_weights(submission_type,bedrooms,bathrooms,sqft)
-    
-    
     with open(os.path.join(current_app.instance_path,'scripts','tables.txt'),'r') as f:
         lines=f.readlines()
     
@@ -83,9 +110,8 @@ def post_endpoint():
     
     sql_columns=[str(line.strip()) for line in lines]
     
-    
-# PART 3: STREAM DATA
-    
+
+
     execution_vars=[]
     execution_string=f'SELECT * FROM {sql_tables[2]} WHERE('
     
@@ -123,42 +149,76 @@ def post_endpoint():
         
     if (zip!="" and zip is not None):
         execution_string+=' AND '
-        execution_string+=f'"{sql_columns[24]}" = {zip}'
+        execution_string+=f'"{sql_columns[24]}" = \'{zip}\''
         execution_vars.append(zip)
 
     execution_string+=');'
     
     db=get_db()
-
-# PART 4: PREPROCESS STREAMED DATA
-
+    
     #convert to df
+    
     df=pd.read_sql_query(text(execution_string),db)
     
-    # Alter to potential use values based on normal disribution of values
-
-    #I'm Feeling Lucky
-
-    random_state=np.random.randint(0,999)
     
+    output={
+            "error":None,
+            "model":"FYH"
+            }
+    
+    if df is None or df.empty:
+        output['error']="No homes found. Please adjust your search parameters."
+        
+        return json.dumps(output)
+    
+    #empty
+    execution_string=''
+    
+# PART 3: CONFIGURE MODEL SETTINGS
+
+    def configure_model_weights(submission_type,bds,bas,sqft):
+        bd_weight=1
+        ba_weight=1
+        sqft_weight=1
+        
+        #Proper Submit w/ no value
+        if submission_type==2:
+            if bds==0:
+                bd_weight=0
+            if bas==0:
+                ba_weight=0
+            if sqft==0:
+                sqft_weight=0
+                
+        return np.array([bd_weight,ba_weight,sqft_weight])
+
+    model_weights=configure_model_weights(submission_type,bedrooms,bathrooms,sqft)
+    
+    
+    random_state=np.random.randint(0,999) # Global Random State
+    
+    #I'm Feeling Lucky    
     if submission_type==1:
         np.random.seed(random_state)
-        if bedrooms==0:
+        if bedrooms==0 or bedrooms is None:
             bedrooms_probabilities=df[sql_columns[0]].value_counts(normalize=True)
             bedrooms=np.random.choice(bedrooms_probabilities.index,p=bedrooms_probabilities.values)
-        if bathrooms==0:
+            o_input_data['dimensions']['bedrooms']=bedrooms
+        if bathrooms==0 or bathrooms is None:
             bathrooms_probabilities=df[sql_columns[1]].value_counts(normalize=True)
             bathrooms=np.random.choice(bathrooms_probabilities.index,p=bathrooms_probabilities.values)
-        if sqft==0:
+            o_input_data['dimensions']['bathrooms']=bathrooms
+        if sqft==0 or sqft is None:
             sqft_probabilities=df[sql_columns[3]].value_counts(normalize=True)
             sqft=np.random.choice(sqft_probabilities.index,p=sqft_probabilities.values)
+            o_input_data['dimensions']['sqft']=sqft
             
             
-            
-            
-
-
+    #Shuffle data    
     sampled_df=df.sample(frac=1, replace=False, random_state=random_state)
+
+
+# PART 4: PREPROCESS STREAMED DATA
     
     NN_df=sampled_df[[f'{sql_columns[0]}',f'{sql_columns[1]}',f'{sql_columns[3]}']]
     
@@ -175,8 +235,6 @@ def post_endpoint():
 
     NN_np=pipeline.fit_transform(NN_df)
     input_np=pipeline.transform(input_df)
-        
-
 
 
 # PART 5: RUN MODEL
@@ -202,7 +260,7 @@ def post_endpoint():
             
     
     
-    result_df=get_top(sampled_df,indices)
+    result_df=get_top(sampled_df,indices) # Empty?
 
 # PART 6: POST MODEL DATA
 
@@ -214,13 +272,14 @@ def post_endpoint():
         
         for li in parsed:
             h={
+                "id":li[sql_columns[28]],
                 "time_stamp":li[sql_columns[11]],
                 "url":li[sql_columns[22]],
-                "price":li[sql_columns[25]],
+                "price":li[sql_columns[27]],
                 "bedrooms":li[f"{sql_columns[0]}"],
                 "bathrooms":li[f"{sql_columns[1]}"],
                 "sqft":li[f"{sql_columns[3]}"],
-                "year_built":li[sql_columns[26]],
+                "year_built":li[sql_columns[28]],
                 "address":li[sql_columns[14]],
                 "state":li[sql_columns[16]],
                 "city":li[sql_columns[15]],
@@ -237,20 +296,27 @@ def post_endpoint():
             
         return lst
 
-    output={
-        "user":input_data["user"],
-        "date":"",
-        "model":"FYH",
-        "random_state":random_state,
-        "data":prepare_model_json(result_df)
-    }
-    
-    with open('../output.json','w') as f:
-        json.dump(output,f,indent=4)
+    model_json=prepare_model_json(result_df)
 
+    output["data"]=model_json
     
-    return '',204 # No Content; Valid Return
+    output_json=json.dumps(output)
     
+    ts=time.time()
+    
+    search_data={'input':o_input_data,'output':output}
+    
+    # record_user_search.delay(output,ts) # Not lighting up??????????????????????
+    
+    record_user_search(search_data,ts)
+  
+    return output_json # Valid Return
+  
+  
+  
+
+
+        
     
     
     
