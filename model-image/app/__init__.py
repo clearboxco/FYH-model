@@ -2,17 +2,14 @@ import os
 
 from flask import Flask,url_for
 from flask_session import Session
-from flask_cors import CORS, cross_origin
+
+from flask_security import Security,current_user,SQLAlchemySessionUserDatastore
+
+from flask_mailman import Mail
 
 def create_app(test_config=None):
     # create and configure the app
     appl = Flask(__name__, instance_relative_config=True)
-    """
-    app.config.from_mapping(
-        SECRET_KEY='dev', # SECRET KEYS IN PUBLISHED APPS IS STUPID; wiLL OS.GETNV
-        DATABASE=os.path.join(app.instance_path, 'fyh-database.db'),
-    )
-    """
     
     # ensure the instance folder exists
     try:
@@ -27,7 +24,8 @@ def create_app(test_config=None):
         # load the test config if passed in
         appl.config.from_mapping(test_config)
     
-    Session(appl)
+    sess=Session(appl)
+    mail=Mail(appl)
 
     #registering dependencies
     from . import db
@@ -35,7 +33,13 @@ def create_app(test_config=None):
     db.init_app(appl)
     cs.celery_init_app(appl) # Could not get celery to work for windows... ugh
 
-    with appl.app_context():        
+    with appl.app_context():
+        # set up security
+        from .user import User,Role
+        user_datastore = SQLAlchemySessionUserDatastore(db.get_db(),User,Role)
+        appl.security = Security(appl,user_datastore)
+        
+                
         # registering blueprints
         from . import auth
         from . import model
@@ -43,6 +47,8 @@ def create_app(test_config=None):
         appl.register_blueprint(auth.bp)
         appl.register_blueprint(model.bp)
         appl.register_blueprint(data.bp)
+        
+
 
 
 
@@ -53,3 +59,5 @@ if __name__ == "__main__":
     app=create_app()
     app.run(debug=True)
     
+
+

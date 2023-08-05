@@ -1,7 +1,9 @@
 from sqlalchemy import create_engine,URL,Row
 
-import click
 from flask import current_app,g
+
+
+from sqlalchemy.ext.declarative import declarative_base
 
 def get_db():
     if 'db' not in g:
@@ -30,5 +32,4 @@ def close_db(e=None):
 def init_app(app):
     app.teardown_appcontext(close_db)
     # app.cli.add_command(init_db_command)
-    
     

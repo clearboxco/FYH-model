@@ -21,8 +21,8 @@ from scipy.spatial.distance import euclidean
 
 bp = Blueprint('model',__name__,url_prefix='/model')
 
-#@shared_task(name='record-user-search') # TRY TO GET ASYNC
-def record_user_search(data,date:time.time):
+@shared_task(name='record-user-search')
+def record_user_search(user,data,date:time.time):
     
     i_data=data['input']
     o_data=data['output']
@@ -51,7 +51,7 @@ def record_user_search(data,date:time.time):
                                                 'value11':i_data['property_type'],
                                                 'value12':i_data['year_built']['max'],
                                                 'value13':i_data['year_built']['min'],
-                                                'value14':id
+                                                'value14':user
                                                 }).fetchone()[0]
         
         with open(os.path.join(current_app.instance_path,'scripts','post_s_h_join.sql'),'r') as f:
@@ -275,11 +275,11 @@ def execute_model():
                 "id":li[sql_columns[28]],
                 "time_stamp":li[sql_columns[11]],
                 "url":li[sql_columns[22]],
-                "price":li[sql_columns[27]],
+                "price":li[sql_columns[25]],
                 "bedrooms":li[f"{sql_columns[0]}"],
                 "bathrooms":li[f"{sql_columns[1]}"],
                 "sqft":li[f"{sql_columns[3]}"],
-                "year_built":li[sql_columns[28]],
+                "year_built":li[sql_columns[26]],
                 "address":li[sql_columns[14]],
                 "state":li[sql_columns[16]],
                 "city":li[sql_columns[15]],
@@ -306,9 +306,12 @@ def execute_model():
     
     search_data={'input':o_input_data,'output':output}
     
-    # record_user_search.delay(output,ts) # Not lighting up??????????????????????
+    try:
+        user=g.user[0]
+    except:
+        user=None
     
-    record_user_search(search_data,ts)
+    record_user_search.delay(user,search_data,ts)
   
     return output_json # Valid Return
   

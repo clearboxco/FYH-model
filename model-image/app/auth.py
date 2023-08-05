@@ -2,19 +2,17 @@ import functools
 import os
 import json
 
-from .db import get_db
-
 from flask import (
     Blueprint, flash, g, redirect, render_template, request, session, url_for, current_app
 )
-from flask_cors import cross_origin
+
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
-
+from .db import get_db
 
 
 bp = Blueprint('auth',__name__,url_prefix='/auth')
@@ -46,7 +44,7 @@ def register():
             error = f"User {username} is already registered."
 
     
-    return json.dumps({"error":error}), 200
+    return json.dumps({"error":error})
         
         
         
@@ -78,7 +76,7 @@ def login():
     return json.dumps({"error":error})
         
         
-@bp.before_app_request # It's getting called before requests, but it won't save the session
+@bp.before_app_request
 def load_logged_in_user():
     user_id=session.get('user_id')
     
@@ -93,7 +91,7 @@ def load_logged_in_user():
 @bp.route('/logout',methods=['GET'])
 def logout():
     session.clear()
-    return '',200
+    return ''
     
     
     
