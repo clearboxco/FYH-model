@@ -2,3 +2,4 @@
 *.csv
 */instance/
 */flask_session
+*/*/user.py
