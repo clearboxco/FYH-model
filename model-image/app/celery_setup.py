@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask,current_app
 from celery import Celery, Task
 
 def celery_init_app(app: Flask) -> Celery:

@@ -3,16 +3,16 @@ import os
 import json
 
 from flask import (
-    Blueprint, flash, g, redirect, render_template, request, session, url_for, current_app
+    Blueprint, flash, g, redirect, render_template, request, session, url_for, current_app,jsonify
 )
-
-
-from werkzeug.security import check_password_hash, generate_password_hash
 
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
-from .db import get_db
+from flask_login import logout_user,login_user,login_required,current_user,fresh_login_required
+from .user import User,db
+from . import login_manager
+
 
 
 bp = Blueprint('auth',__name__,url_prefix='/auth')
@@ -21,30 +21,32 @@ bp = Blueprint('auth',__name__,url_prefix='/auth')
 def register():
     post=request.get_json(force=True)
     
+    error=None
+    
     username=post['username']
     password=post['password']
-    
-    db=get_db()
-    error=None
     
     if not username:
         error = 'Username is required.'
     elif not username:
         error='Password is required.'
-            
-    if error is None:
-        try:
-            with open(os.path.join(current_app.instance_path,'scripts','insert_user.sql')) as f:
-                insert_user_sql=f.read()
-                
-            db.execute(text(insert_user_sql),{'value1':username,'value2':generate_password_hash(password)})
-            db.commit()
-        except IntegrityError:
-            db.rollback()
-            error = f"User {username} is already registered."
-
     
-    return json.dumps({"error":error})
+    if error is None:
+        existing_user = User.query.filter_by(email=username).first()
+        if existing_user is None:
+            user = User(email=username,
+                        login_count=1,
+                        
+                        )
+            user.set_password(password)
+            db.session.add(user)
+            db.session.commit()
+            login_user(user)
+        else:
+            error="User already exists."
+            
+    
+    return jsonify({"error":error})
         
         
         
@@ -56,43 +58,45 @@ def login():
     username=post['username']
     password=post['password']
     
-    db=get_db()
     error = None
     
-    with open(os.path.join(current_app.instance_path,'scripts','select_user.sql')) as f:
-                select_user_sql=f.read()
-    
-    user = db.execute(text(select_user_sql),{'value1':username}).fetchone()
+    user = User.query.filter_by(email=username).first()
     
     if user is None:
         error = 'Incorrect username.'
-    elif not check_password_hash(user[2],password):
+    elif not user.check_password(password=password):
         error='Incorrect password.'
 
     if error is None:
-        session.clear()
-        session['user_id']=user[0]
-        
-    return json.dumps({"error":error})
-        
-        
-@bp.before_app_request
-def load_logged_in_user():
-    user_id=session.get('user_id')
-    
-    if user_id is None:
-        g.user = None
-    else:
-        with open(os.path.join(current_app.instance_path,'scripts','get_confirmed_user.sql')) as f:
-            get_confirmed_user_sql=f.read()
-        g.user = get_db().execute(text(get_confirmed_user_sql),{'value1':int(user_id)}).fetchone()
-        
-        
+        login_user(user)
+        user.login_count+=1
+        db.session.commit()
+
+    return jsonify({"error":error})
+
+
 @bp.route('/logout',methods=['GET'])
+@login_required
 def logout():
-    session.clear()
-    return ''
-    
+    logout_user()
+    return jsonify({"error":None})
+        
+
+@login_manager.user_loader
+def load_user(unique_id):
+    if unique_id is not None:
+        return User.query.filter_by(fs_uniquifier=unique_id).first()
+    return None
+
+
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    return jsonify({"error":"User must be logged in."})
+
+@login_manager.needs_refresh_handler
+def refresh():
+    return jsonify({"error":"User must be logged in."})
     
     
 @bp.route('/reset',methods=['POST'])
@@ -103,41 +107,54 @@ def reset_password():
 
 
 @bp.route('/update',methods=['POST'])
+@fresh_login_required
 def change_password():
     error=None
+        
+    post=request.get_json(force=True)
+    username=post['username']
+    password=post['password']
     
-    if g.user is not None:
+    user = User.query.filter_by(fs_uniquifier=current_user.fs_uniquifier).first()
+    
+    if username is not None:
+        user.email=post['username']
+    
+    if password is not None:
+        user.set_password(post['password'])
         
-        post=request.get_json(force=True)
-        password=post['password']
-        
-        with open(os.path.join(current_app.instance_path,'scripts','update_password.sql')) as f:
-            update_password_sql=f.read()
+    if password is None and username is None:
+        error="Nothing was updated."
+    
+    if error is None:
+        with open(os.path.join(current_app.instance_path,'scripts','invalidate_old_sessions.sql')) as f:
+            invalidate_old_sessions_sql=f.read()
             
-        db=get_db()
+        db.session.execute(text(invalidate_old_sessions_sql),{"value1":user.user_id})
         
-        try:
-            db.execute(text(update_password_sql),{'value1':generate_password_hash(password),'value2':g.user[0]})
-            db.commit()
-        except IntegrityError:
-            db.rollback()
-    else:
-        error="Invalid request."       
-            
-    json.dumps({"error":error})
+        db.session.commit()
+    
+    return jsonify({"error":error})
+    
+    
+    
+        
     
 
-def login_required(view):
+def auth_required(view): # MAYBE IMPLEMENT WAY TO VIEW HEADERS TO CHECK FOR REPEAT USER-AGENTS, ETC. USING request.headers.get()
     @functools.wraps(view)
     def wrapped_view(**kwargs):
-        if g.user is None:
-            return None
-        
+        if request.headers.get('Token')!=current_app.config['ACCESS_TOKEN']:
+            return '',403
         return view(**kwargs)
     
     return wrapped_view
 
-    
+@bp.before_app_request
+@auth_required
+def before_request():
+    """Protect all endpoints from unauthorized users."""
+    pass
     
             
             

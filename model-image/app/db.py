@@ -1,9 +1,8 @@
 from sqlalchemy import create_engine,URL,Row
-
 from flask import current_app,g
 
 
-from sqlalchemy.ext.declarative import declarative_base
+# TO DELETE
 
 def get_db():
     if 'db' not in g:

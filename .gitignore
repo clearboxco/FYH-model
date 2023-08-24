@@ -1,5 +1,7 @@
-.venv/
+.venv*/
 *.csv
 */instance/
 */flask_session
 */*/user.py
+*.json
+token.txt

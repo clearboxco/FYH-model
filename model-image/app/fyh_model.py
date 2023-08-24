@@ -5,10 +5,13 @@ import time
 import pandas as pd
 import numpy as np
 
-from flask import Blueprint, request, current_app, g
-from .db import get_db
+from flask import Blueprint, request, current_app, g, jsonify
+from . import db
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
+
+from flask_login import current_user
+
 from celery import shared_task
 
 from sklearn.compose import ColumnTransformer
@@ -26,19 +29,14 @@ def record_user_search(user,data,date:time.time):
     
     i_data=data['input']
     o_data=data['output']
-    
-    try:
-        id=g.user[0]
-    except:
-        id=None
      
     try:
-        db=get_db()
+        sess=db.session
         
         with open(os.path.join(current_app.instance_path,'scripts','post_search.sql'),'r') as f:
             post_searches_sql=f.read()   
             
-        s_id=db.execute(text(post_searches_sql),{'value1':date,
+        s_id=sess.execute(text(post_searches_sql),{'value1':date,
                                                 'value2':i_data['submission_type'],
                                                 'value3':i_data['location']['city'],
                                                 'value4':i_data['location']['state'],
@@ -58,15 +56,15 @@ def record_user_search(user,data,date:time.time):
             post_s_h_join_sql=f.read()
 
             for idx,h in enumerate(o_data['data']):
-                db.execute(text(post_s_h_join_sql),{'value1':s_id,'value2':h['id'],'value3':idx})
-            db.commit()
+                sess.execute(text(post_s_h_join_sql),{'value1':s_id,'value2':h['id'],'value3':idx})
+            sess.commit()
         
         
     except IntegrityError as e:
-        db.rollback()
+        sess.rollback()
         raise e
     except Exception as e:
-        db.rollback()
+        sess.rollback()
         raise e
 
             
@@ -154,11 +152,11 @@ def execute_model():
 
     execution_string+=');'
     
-    db=get_db()
+    sess=db.session
     
     #convert to df
     
-    df=pd.read_sql_query(text(execution_string),db)
+    df=pd.read_sql_query(text(execution_string),sess.connection())
     
     
     output={
@@ -300,14 +298,13 @@ def execute_model():
 
     output["data"]=model_json
     
-    output_json=json.dumps(output)
+    output_json=jsonify(output)
     
     ts=time.time()
     
     search_data={'input':o_input_data,'output':output}
-    
     try:
-        user=g.user[0]
+        user=current_user.user_id
     except:
         user=None
     

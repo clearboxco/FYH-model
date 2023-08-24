@@ -1,11 +1,14 @@
 import os
 
-from flask import Flask,url_for
-from flask_session import Session
+from flask import Flask
 
-from flask_security import Security,current_user,SQLAlchemySessionUserDatastore
+from flask_mail import Mail
 
-from flask_mailman import Mail
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager
+
+db = SQLAlchemy()
+login_manager = LoginManager()
 
 def create_app(test_config=None):
     # create and configure the app
@@ -23,41 +26,32 @@ def create_app(test_config=None):
     else:
         # load the test config if passed in
         appl.config.from_mapping(test_config)
-    
-    sess=Session(appl)
-    mail=Mail(appl)
 
-    #registering dependencies
-    from . import db
+    # celery setup
     from . import celery_setup as cs
+    cs.celery_init_app(appl)
+    
+    # initializing plugins
     db.init_app(appl)
-    cs.celery_init_app(appl) # Could not get celery to work for windows... ugh
+    login_manager.init_app(appl)
 
-    with appl.app_context():
-        # set up security
-        from .user import User,Role
-        user_datastore = SQLAlchemySessionUserDatastore(db.get_db(),User,Role)
-        appl.security = Security(appl,user_datastore)
-        
-                
+    with appl.app_context():                
         # registering blueprints
         from . import auth
-        from . import model
+        from . import fyh_model
         from . import data
         appl.register_blueprint(auth.bp)
-        appl.register_blueprint(model.bp)
+        appl.register_blueprint(fyh_model.bp)
         appl.register_blueprint(data.bp)
         
-
-
-
+        db.create_all()
 
     
     return appl
 
 if __name__ == "__main__":
     app=create_app()
-    app.run(debug=True)
+    app.run(debug=True,port=5000)
     
 
 
