@@ -3,7 +3,7 @@ import os
 import json
 
 from flask import (
-    Blueprint, flash, g, redirect, render_template, request, session, url_for, current_app,jsonify
+    Blueprint, request, current_app, jsonify, make_response, Flask
 )
 
 from sqlalchemy import text
@@ -50,7 +50,7 @@ def register():
         
         
         
-@bp.route('/login',methods=['GET','POST'])
+@bp.route('/login',methods=['POST'])
 def login():
     
     post=request.get_json(force=True)
@@ -62,7 +62,7 @@ def login():
     
     user = User.query.filter_by(email=username).first()
     
-    if user is None:
+    if user is None or user=="":
         error = 'Incorrect username.'
     elif not user.check_password(password=password):
         error='Incorrect password.'
@@ -80,6 +80,13 @@ def login():
 def logout():
     logout_user()
     return jsonify({"error":None})
+
+
+@bp.route('/status',methods=['GET'])
+@login_required
+def check_login_status():
+    return jsonify({"error":None})
+
         
 
 @login_manager.user_loader
@@ -106,6 +113,8 @@ def reset_password():
     
 
 
+
+
 @bp.route('/update',methods=['POST'])
 @fresh_login_required
 def change_password():
@@ -117,10 +126,10 @@ def change_password():
     
     user = User.query.filter_by(fs_uniquifier=current_user.fs_uniquifier).first()
     
-    if username is not None:
+    if username is not None and username=="":
         user.email=post['username']
     
-    if password is not None:
+    if password is not None and username=="":
         user.set_password(post['password'])
         
     if password is None and username is None:
@@ -150,11 +159,34 @@ def auth_required(view): # MAYBE IMPLEMENT WAY TO VIEW HEADERS TO CHECK FOR REPE
     
     return wrapped_view
 
+def handle_cors_preflight(view):
+    @functools.wraps(view)
+    def wrapped_view(**kwargs):
+        if request.method=='OPTIONS':
+            response=make_response()
+            response.headers.add('Access-Control-Allow-Headers', "Content-Type, Token")
+            response.headers.add('Access-Control-Allow-Methods', "*")
+            return response
+        
+        return view(**kwargs)
+    return wrapped_view
+            
+
 @bp.before_app_request
+@handle_cors_preflight
 @auth_required
 def before_request():
-    """Protect all endpoints from unauthorized users."""
+    """Protect all endpoints from unauthorized users. Allows all CORS pre-flight requests."""
     pass
+
+
+@bp.after_app_request
+def apply_cors_headers(response:Flask.response_class):
+    if response.status_code==200:
+        response.headers.add("Access-Control-Allow-Credentials","true")
+        response.headers.add("Access-Control-Allow-Origin",current_app.config['ACCESS_CONTROL_URL'])
+        response.set_cookie('cross-site-cookie',samesite='Lax',secure=True)
+    return response
     
             
             

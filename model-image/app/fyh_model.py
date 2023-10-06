@@ -55,9 +55,9 @@ def record_user_search(user,data,date:time.time):
         with open(os.path.join(current_app.instance_path,'scripts','post_s_h_join.sql'),'r') as f:
             post_s_h_join_sql=f.read()
 
-            for idx,h in enumerate(o_data['data']):
-                sess.execute(text(post_s_h_join_sql),{'value1':s_id,'value2':h['id'],'value3':idx})
-            sess.commit()
+        for idx,h in enumerate(o_data['data']):
+            sess.execute(text(post_s_h_join_sql),{'value1':s_id,'value2':h['id'],'value3':idx})
+        sess.commit()
         
         
     except IntegrityError as e:
@@ -96,7 +96,7 @@ def execute_model():
     
     
     
-# PART 2: STREAM DATA
+    # PART 2: STREAM DATA
 
     with open(os.path.join(current_app.instance_path,'scripts','tables.txt'),'r') as f:
         lines=f.readlines()
@@ -131,7 +131,7 @@ def execute_model():
     execution_string+=" AND "
     execution_vars.append(property_type_logic[property_type])
     
-    execution_string+=f'"{sql_columns[26]}" < {year_built_max} AND "{sql_columns[26]}" > {year_built_min}'
+    execution_string+=f'"{sql_columns[26]}" <= {year_built_max} AND "{sql_columns[26]}" >= {year_built_min}'
     execution_vars.append(year_built_max)
     execution_vars.append(year_built_min)
     
