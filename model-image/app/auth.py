@@ -1,9 +1,10 @@
 import functools
 import os
 import json
+from urllib.parse import urlparse
 
 from flask import (
-    Blueprint, request, current_app, jsonify, make_response, Flask
+    Blueprint, request, current_app, jsonify, make_response, Flask, abort
 )
 
 from sqlalchemy import text
@@ -153,8 +154,12 @@ def change_password():
 def auth_required(view): # MAYBE IMPLEMENT WAY TO VIEW HEADERS TO CHECK FOR REPEAT USER-AGENTS, ETC. USING request.headers.get()
     @functools.wraps(view)
     def wrapped_view(**kwargs):
-        if request.headers.get('Token')!=current_app.config['ACCESS_TOKEN']:
-            return '',403
+        
+        host_url=urlparse(request.host_url).hostname
+        
+        if host_url!=current_app.config['HOST_URL']:
+            abort(403)
+            
         return view(**kwargs)
     
     return wrapped_view
@@ -164,7 +169,7 @@ def handle_cors_preflight(view):
     def wrapped_view(**kwargs):
         if request.method=='OPTIONS':
             response=make_response()
-            response.headers.add('Access-Control-Allow-Headers', "Content-Type, Token")
+            response.headers.add('Access-Control-Allow-Headers', "Content-Type")
             response.headers.add('Access-Control-Allow-Methods', "*")
             return response
         

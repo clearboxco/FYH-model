@@ -40,9 +40,9 @@ def create_app(test_config=None):
         from . import auth
         from . import fyh_model
         from . import data
-        appl.register_blueprint(auth.bp)
-        appl.register_blueprint(fyh_model.bp)
-        appl.register_blueprint(data.bp)
+        appl.register_blueprint(auth.bp, url_prefix='/api/v1' + auth.bp.url_prefix)
+        appl.register_blueprint(fyh_model.bp, url_prefix='/api/v1' + fyh_model.bp.url_prefix)
+        appl.register_blueprint(data.bp, url_prefix='/api/v1' + data.bp.url_prefix)
         
         db.create_all()
 

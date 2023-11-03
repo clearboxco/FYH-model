@@ -1,6 +1,7 @@
 import json
 import os
 import time
+from copy import deepcopy
 
 import pandas as pd
 import numpy as np
@@ -20,6 +21,8 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.neighbors import NearestNeighbors
 
 from scipy.spatial.distance import euclidean
+
+
 
 
 bp = Blueprint('model',__name__,url_prefix='/model')
@@ -142,8 +145,8 @@ def execute_model():
         
     if (city!="" and city is not None):
         execution_string+=' AND '
-        execution_string+=f'"{sql_columns[15]}" = \'{city.capitalize()}\''
-        execution_vars.append(city.capitalize())
+        execution_string+=f'"{sql_columns[15]}" = \'{city.title()}\''
+        execution_vars.append(city.title())
         
     if (zip!="" and zip is not None):
         execution_string+=' AND '
@@ -248,17 +251,17 @@ def execute_model():
     distances, indices = knn.kneighbors(input_np)
 
 
-    def get_top(df,indices) -> pd.DataFrame:
-        top=15
+    def get_top_z(z,df,indices) -> pd.DataFrame:
+    
         
-        if indices[0].shape[0]<top:
-            top=indices[0].shape[0]
+        if indices[0].shape[0]<z:
+            z=indices[0].shape[0]
             
-        return df.iloc[indices[0][0:top]]
+        return df.iloc[indices[0][0:z]]
             
     
     
-    result_df=get_top(sampled_df,indices) # Empty?
+    result_df=get_top_z(current_app.config['NUM_HOUSES_RETURNED'],sampled_df,indices) # Empty?
 
 # PART 6: POST MODEL DATA
 
@@ -298,7 +301,10 @@ def execute_model():
 
     output["data"]=model_json
     
-    output_json=jsonify(output)
+    output_no_id = deepcopy(output)
+    for h in output_no_id['data']:
+        h['id']=None
+    output_json=jsonify(output_no_id)
     
     ts=time.time()
     

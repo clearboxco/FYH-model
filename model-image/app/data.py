@@ -8,6 +8,10 @@ from sqlalchemy.exc import IntegrityError
 
 from flask_login import login_required,current_user
 
+from celery import shared_task
+
+from .user import User
+
 
 bp=Blueprint("data",__name__,url_prefix="/data")
 
@@ -23,6 +27,13 @@ def access_claps():
     if request.method=='POST':
         post=request.get_json(force=True)
         claps=post['claps']
+        
+        try:
+            user_id=current_user.user_id
+            record_user_claps.delay(user_id,claps)
+        except:
+            pass
+            
         
         try:
             with open(os.path.join(current_app.instance_path,'scripts','post_claps.sql')) as f:
@@ -48,7 +59,18 @@ def access_claps():
     output['error']=error
     
     return jsonify(output)
-                    
+           
+           
+@shared_task(name="record-user-claps")
+def record_user_claps(user_id,claps):
+    user = User.query.filter_by(user_id=user_id).first()
+    
+    if isinstance(user.claps,int):
+        user.claps+=claps
+    else:
+        user.claps=1
+    
+    db.session.commit()
                     
         
 @bp.route('/searches',methods=['GET','POST'])
