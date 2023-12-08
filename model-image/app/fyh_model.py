@@ -76,26 +76,39 @@ def record_user_search(user,data,date:time.time):
 @bp.route('/post', methods=['POST'])
 def execute_model():
     
+    output={
+        "error":None,
+        "model":"FYH"
+    }
+    
+    
     # PART 1: READ IN JSON DATA
+
     input_data = request.get_json(force=True)
     
     o_input_data=input_data # Modify for output
     
-    submission_type=int(input_data['submission_type'])
+    submission_type=(input_data['submission_type'])
     
-    price_max=float(input_data['price']['max'])
-    price_min=float(input_data['price']['min'])
-    property_type=int(input_data["property_type"])
-    state=str(input_data['location']['state'])
-    city=str(input_data['location']['city'])
-    zip=str(input_data['location']['zip'])
-    year_built_max=int(input_data['year_built']['max'])
-    year_built_min=int(input_data['year_built']['min'])
+    price_max=(input_data['price']['max'])
+    price_min=(input_data['price']['min'])
+    property_type=(input_data["property_type"])
+    state=(input_data['location']['state'])
+    city=(input_data['location']['city'])
+    zip=(input_data['location']['zip'])
+    year_built_max=(input_data['year_built']['max'])
+    year_built_min=(input_data['year_built']['min'])
 
-    bedrooms=float(input_data['dimensions']['bedrooms'])
-    bathrooms=float(input_data['dimensions']['bathrooms'])
-    sqft=float(input_data['dimensions']['sqft'])
+    bedrooms=(input_data['dimensions']['bedrooms'])
+    bathrooms=(input_data['dimensions']['bathrooms'])
+    sqft=(input_data['dimensions']['sqft'])
     
+    
+    
+    if ((state=="" or state is None) and (city=="" or city is None) and (zip=="" or zip is None)):
+        output['error']="No location parameters found."
+        
+        return jsonify(output)
     
     
     
@@ -162,15 +175,10 @@ def execute_model():
     df=pd.read_sql_query(text(execution_string),sess.connection())
     
     
-    output={
-            "error":None,
-            "model":"FYH"
-            }
-    
     if df is None or df.empty:
         output['error']="No homes found. Please adjust your search parameters."
         
-        return json.dumps(output)
+        return jsonify(output)
     
     #empty
     execution_string=''
@@ -217,6 +225,8 @@ def execute_model():
             
     #Shuffle data    
     sampled_df=df.sample(frac=1, replace=False, random_state=random_state)
+    
+    del df # Free up memory for large dataset
 
 
 # PART 4: PREPROCESS STREAMED DATA
@@ -235,6 +245,9 @@ def execute_model():
     pipeline = Pipeline(steps=[('preprocessor', preprocessor)])
 
     NN_np=pipeline.fit_transform(NN_df)
+    
+    del NN_df # Free up memory for large dataset
+    
     input_np=pipeline.transform(input_df)
 
 
@@ -247,6 +260,8 @@ def execute_model():
 
     knn=NearestNeighbors(n_neighbors=NN_np.shape[0],metric=weighted_euclidian)
     knn.fit(NN_np)
+    
+    del NN_np # Free up memory for large dataset
     
     distances, indices = knn.kneighbors(input_np)
 
@@ -261,7 +276,9 @@ def execute_model():
             
     
     
-    result_df=get_top_z(current_app.config['NUM_HOUSES_RETURNED'],sampled_df,indices) # Empty?
+    result_df=get_top_z(current_app.config['NUM_HOUSES_RETURNED'],sampled_df,indices)
+    
+    del sampled_df # Free up memory for large dataset
 
 # PART 6: POST MODEL DATA
 

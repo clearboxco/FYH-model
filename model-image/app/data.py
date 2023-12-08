@@ -26,7 +26,13 @@ def access_claps():
     
     if request.method=='POST':
         post=request.get_json(force=True)
-        claps=post['claps']
+        check=post['claps']
+        
+        if(check):
+            claps=1
+        else:
+            claps=0
+            
         
         try:
             user_id=current_user.user_id
@@ -97,25 +103,25 @@ def get_searches_input():
             
             for row in rows:
                 records.append({
-                    "s_id":str(row[0]),
-                    "h_id":str(row[1]),
-                    "time_stamp":str(row[3]),
-                    "url":str(row[23]),
-                    "price":str(row[10]),
-                    "bedrooms":str(row[11]),
-                    "bathrooms":str(row[12]),
-                    "sqft":str(row[14]),
-                    "year_built":str(row[16]),
-                    "address":str(row[6]),
-                    "state":str(row[8]),
-                    "city":str(row[7]),
-                    "zip":str(row[9]),
-                    "openHouse_st":str(row[21]),
-                    "openHouse_et":str(row[22]),
-                    "HOA/month":str(row[19]),
-                    "days_on_market":str(row[17]),
-                    "price_per_sqft":str(row[18]),
-                    "rank":str(row[30])   
+                    "s_id":(row[0]),
+                    "h_id":(row[1]),
+                    "time_stamp":(row[3]),
+                    "url":(row[23]),
+                    "price":(row[10]),
+                    "bedrooms":(row[11]),
+                    "bathrooms":(row[12]),
+                    "sqft":(row[14]),
+                    "year_built":(row[16]),
+                    "address":(row[6]),
+                    "state":(row[8]),
+                    "city":(row[7]),
+                    "zip":(row[9]),
+                    "openHouse_st":(row[21]),
+                    "openHouse_et":(row[22]),
+                    "HOA/month":(row[19]),
+                    "days_on_market":(row[17]),
+                    "price_per_sqft":(row[18]),
+                    "rank":(row[30])   
                 })
                 
             output['data']=records
@@ -139,22 +145,22 @@ def get_searches_input():
             
             for row in rows:
                 records.append({
-                    "s_id":str(row[0]),
-                    "time_stamp":str(row[1]),
-                    "submission_type":str(row[2]),
-                    "city":str(row[3]),
-                    "state":str(row[4]),
-                    "zip":str(row[5]),
-                    "price_max":str(row[6]),
-                    "price_min":str(row[7]),
-                    "bedrooms":str(row[8]),
-                    "bathrooms":str(row[9]),
-                    "sqft":str(row[10]),
-                    "property_type":str(row[11]),
-                    "year_built_max":str(row[12]),
-                    "year_built_min":str(row[13]),
-                    "u_id":str(row[14]),
-                    "rank":str(row[15])
+                    "s_id":(row[0]),
+                    "time_stamp":(row[1]),
+                    "submission_type":(row[2]),
+                    "city":(row[3]),
+                    "state":(row[4]),
+                    "zip":(row[5]),
+                    "price_max":(row[6]),
+                    "price_min":(row[7]),
+                    "bedrooms":(row[8]),
+                    "bathrooms":(row[9]),
+                    "sqft":(row[10]),
+                    "property_type":(row[11]),
+                    "year_built_max":(row[12]),
+                    "year_built_min":(row[13]),
+                    "u_id":(row[14]),
+                    "rank":(row[15])
                 })
                 
             output['data']=records

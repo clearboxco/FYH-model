@@ -30,7 +30,7 @@ def register():
     if not username:
         error = 'Username is required.'
     elif not username:
-        error='Password is required.'
+        error = 'Password is required.'
     
     if error is None:
         existing_user = User.query.filter_by(email=username).first()
@@ -66,7 +66,7 @@ def login():
     if user is None or user=="":
         error = 'Incorrect username.'
     elif not user.check_password(password=password):
-        error='Incorrect password.'
+        error = 'Incorrect password.'
 
     if error is None:
         login_user(user)
@@ -127,11 +127,11 @@ def change_password():
     
     user = User.query.filter_by(fs_uniquifier=current_user.fs_uniquifier).first()
     
-    if username is not None and username=="":
-        user.email=post['username']
+    if username is not None and username!="":
+        user.email=username
     
-    if password is not None and username=="":
-        user.set_password(post['password'])
+    if password is not None and username!="":
+        user.set_password(password)
         
     if password is None and username is None:
         error="Nothing was updated."
@@ -157,7 +157,7 @@ def auth_required(view): # MAYBE IMPLEMENT WAY TO VIEW HEADERS TO CHECK FOR REPE
         
         host_url=urlparse(request.host_url).hostname
         
-        if host_url!=current_app.config['HOST_URL']:
+        if host_url not in current_app.config['HOST_URLS']:
             abort(403)
             
         return view(**kwargs)
